@@ -11,12 +11,20 @@ class Platform(object):
         self.px=px
         self.py=py
 
+# create a class that define all random props in game
+class Props(object):
+    def __init__(self, name, ppx, ppy):
+        self.name=name
+        self.ppx=ppx
+        self.ppy=ppy
+
 def onAppStart(app):
     app.avatar = 'character-idle.png'# load the avatar image
     # app.platform = 'platform.png'# load the normal platform image
     app.platformWidth,app.platformHeight=140,20
     app.avatarWidth,app.avatarHeight=64,64 # initialize avatar size
-    app.platformList=[] # a list of randomly generated platform
+    # a list of randomly generated platform, initialize the first one
+    app.platformList=[Platform('normal', app.width/2,app.height/2+app.avatarHeight/2)] 
     app.cx=app.width/2 # start avatar position x
     app.cy=app.height/2 # start avatar position y
     app.direction=1 # x direction
@@ -31,30 +39,60 @@ def onAppStart(app):
     app.gravity=0.4 # y direction accelration / gravity
     app.grounded=False # detect whether stay on ground 
     app.ground=app.height/2 # temp ground
-    app.jumpSpeed=6 # initial jump speed
+    app.jumpSpeed=5 # initial jump speed
     app.move=False # detect whether should move
     app.jump=False # detect whether should jump
     app.gameOver=False # game over status
-    app.gameStart=False
-    app.skip=50
-    app.score=100 # score system count
-    app.upwardVolocity=3 # the everything going upwards speed
+    app.gameStart=False # if game started
+    app.skip,app.skipInit=100,100 # used in generating platforms
+    app.difficulty=None
+    # if app.difficulty=='easy':
+    #     app.skip,app.skipInit=100,100
+    # elif app.difficulty=='medium':
+    #     app.skip,app.skipInit=80,80
+    # elif app.difficulty=='hard':
+    #     app.skip,app.skipInit=60,60
+    app.life=100 # life system count
+    app.level=1 # count the levels of current location
+    app.levelCounter=400 # level developed by time
+    app.onStab=False # avatar is standing on Stab Platform
+    app.gameSuccess=False # if game is succeeded
+    # selectDifficultyLevel(app)
+    app.upwardVolocity=1
     firstScreenGenerate(app) # this is to generate platforms when game starts
+    app.mousePressed=False
+    # prop definition
+    app.propList=[]
+    app.propWidth,app.propHeight=30,30
+    app.bulletSpeed=3
+    app.haveGun=False
+    app.gx=app.cx
+    app.gy=app.cy
+    # gun bullet direction
+    app.dxGun=1
+
+def selectDifficultyLevel(app):
+    if app.difficulty=='easy':
+        app.upwardVolocity=1 # the everything going upwards speed
+    if app.difficulty=='medium':
+        app.upwardVolocity=2
+    elif app.difficulty=='hard':
+        app.upwardVolocity=3
 
 def onKeyPress(app, key):
-    if key=='left':
+    if key=='left' or key=='a':
         app.direction=-1
         app.move=True 
-    if key=='right':
+    if key=='right' or key=='d':
         app.direction=1
         app.move=True
     if key=="space": # jump 
         jumpMotion(app)
     
 def onKeyRelease(app,key):
-    if key=='left':
+    if key=='left'or key=='a':
         app.move=False
-    if key=='right':
+    if key=='right'or key=='d':
         app.move=False
 
 def jumpMotion(app):
@@ -95,11 +133,25 @@ def platformCollision(app):
             app.yVelocity=0
             app.grounded=True
             if (platform.type=='stab'):
-                app.score-=2
+                if app.onStab==False:
+                    app.life-=5
+                    app.onStab==True
+
             elif(platform.type=='bounce'):
                 jumpMotion(app)
+                app.life+=1
             elif(platform.type=='break'):
                 app.platformList.remove(platform)
+                app.life+=1
+            elif(platform.type=='belt-left'):
+                app.cx-=1
+                app.life+=1
+            elif(platform.type=='belt-right'):
+                app.cx+=1
+                app.life+=1
+            else:
+                app.life+=1
+            
 
 def imageFlip(app): # flip the avatar when changing direction
     if app.lastDirection==app.direction*-1:
@@ -118,17 +170,19 @@ def borderCollision(app):
 
 # generate all platforms when initial screen (called on appStart)
 def firstScreenGenerate(app):
-    for i in range(10):
-        randomType=random.choice(['normal','break', 'bounce','stab'])
+    for yPos in range(app.height//2+app.avatarWidth//2+app.platformHeight+100, 
+                        app.height, app.platformHeight+100):
+        # randomly choose a platform type
+        randomType=random.choice(['normal','normal','normal','break', 
+                            'bounce','bounce','belt-left','belt-right','stab'])
+        # randomly choose a x location for a platform
         randomX=random.randrange(app.platformWidth/2,app.width-app.platformWidth/2) 
-        randomY=random.randrange(app.platformHeight/2, app.height-app.platformHeight/2,
-                                app.avatarHeight+app.platformHeight+20)
-        app.platformList.append(Platform(randomType,randomX, randomY))
+        app.platformList.append(Platform(randomType,randomX, yPos))
 
 # to generate random platforms from bottom when moving upwards
 def generatePlatforms(app):
-    randomType=random.choice(['normal','break', 'bounce','stab'])
-    # randomType='normal'
+    randomType=random.choice(['normal','normal','normal','break', 
+                            'bounce','bounce','belt-left','belt-right','stab'])
     randomX=random.randrange(app.platformWidth/2,app.width-app.platformWidth/2) 
     yPos=app.height+ app.platformHeight/2
     app.platformList.append(Platform(randomType,randomX, yPos))
@@ -141,10 +195,14 @@ def deletePlatforms(app):
 
 # draw all platforms from platformList
 def drawPlatforms(app):
+    # define image sources for each type of platform
     platformNormal='platform.png'
     platformBreak='platform-break.png'
     platformStab='platform-stab.png'
     platformBounce='platform-bounce.png'
+    platformBeltLeft='platform-belt-left.png'
+    platformBeltRight='platform-belt-right.png'
+    # draw different types of platforms
     for platform in app.platformList:
         if platform.type=='normal':
             drawImage(platformNormal, platform.px-app.platformWidth/2, 
@@ -158,54 +216,181 @@ def drawPlatforms(app):
         elif platform.type=='bounce':
             drawImage(platformBounce, platform.px-app.platformWidth/2, 
                         platform.py-app.platformHeight/2)
-           
+        elif platform.type=='belt-left':
+            drawImage(platformBeltLeft, platform.px-app.platformWidth/2, 
+                        platform.py-app.platformHeight/2)
+        elif platform.type=='belt-right':
+            drawImage(platformBeltRight, platform.px-app.platformWidth/2, 
+                        platform.py-app.platformHeight/2)
+
+def generateProps(app): 
+    randomShow=random.choice([True, False,False, False, False])
+    if randomShow==True:
+        randomType=random.choice(['gun','heart','heart','death'])
+        randomX=random.randrange(app.propWidth/2,app.width-app.propWidth/2)
+        # randomY=random.randrange(app.height/2,app.height-app.propHeight/2)
+        yPos=app.height+app.propHeight
+        app.propList.append(Props(randomType,randomX,yPos))
+
+def propCollision(app,prop):
+    distance=((prop.ppx-app.cx)**2+(prop.ppy-app.cy)**2)**0.5
+    if distance<=app.avatarWidth/2+app.propWidth/2:
+        return prop.name
+    return None
+
+def collectProp(app):
+    for prop in app.propList:
+        if propCollision(app,prop)=='gun':
+            app.propList.remove(prop)
+            app.haveGun=True
+        if propCollision(app,prop)=='heart':
+            app.propList.remove(prop)
+            app.life+=5
+        if propCollision(app,prop)=='death':
+            app.propList.remove(prop)
+            app.life-=15
+
+# this is to draw the bullet of the gun
+def drawBubble(app):
+    drawCircle(app.gx, app.gy, 10,fill='yellow')
+
+def drawProps(app):
+    gun='gun.png'
+    heart='heart.png'
+    death='death.png'  
+    for prop in app.propList:
+        if prop.name=='gun':
+            drawImage(gun, prop.ppx-app.propWidth/2, prop.ppy-app.propHeight/2)
+            if app.haveGun:
+                drawBubble(app)
+        elif prop.name=='heart':
+            drawImage(heart, prop.ppx-app.propWidth/2, prop.ppy-app.propHeight/2)
+        elif prop.name=='death':
+            drawImage(death, prop.ppx-app.propWidth/2, prop.ppy-app.propHeight/2)
 
 def everythingMoveUpward(app):
     # avatar moves upwards
-    acceleration = 0.001
-    app.upwardVolocity += acceleration 
+    selectDifficultyLevel(app)
+    if app.level>20:
+        acceleration = 0.01
+        app.upwardVolocity += acceleration 
     app.cy -= app.upwardVolocity
     # temp platform moves upwards
     for platform in app.platformList:
         platform.py-= app.upwardVolocity
+    for prop in app.propList:
+        prop.ppy -= app.upwardVolocity
+
+# count the level currently in
+def levelCount(app):
+    app.level+=1
+    if app.level>=50:
+        app.gameSuccess=True
 
 def onStep(app): # timer event
-    # if app.gameOver==False:
+    if app.gameOver==False or app.gameSuccess==False:
         # imageFlip(app)
         avatarMovement(app)
         borderCollision(app)
         platformCollision(app)
         everythingMoveUpward(app)
+        collectProp(app)
         app.skip-=1
         if app.skip==0:
             generatePlatforms(app)
-            app.skip=50
+            generateProps(app)
+            app.skip=100
         deletePlatforms(app)
-        if app.score<=0:
-            app.gameOver=True
+        # if app.life<=0:
+        #     app.gameOver=True
+        app.levelCounter-=1
+        if app.levelCounter==0:
+            levelCount(app)
+            app.levelCounter=300
+        if app.haveGun and app.mousePressed:
+            app.gx+=app.dxGun*app.bulletSpeed
 
 def onMousePress(app,mouseX,mouseY):
-    if(mouseX>app.width/2 and mouseX<app.width/2+50 and
-        mouseY>app.height/2+50 and mouseY<app.height/2+70):
-        onAppStart(app)
-        app.gameStart=True
+    # click the start/restart button to start the game
+    if not app.gameStart or  app.gameOver==True or app.gameSuccess==True:
+        if(mouseX>app.width/2 and mouseX<app.width/2+50 and
+            mouseY>app.height/2+50 and mouseY<app.height/2+70):
+            onAppStart(app)
+            app.difficulty='medium'
+            app.gameStart=True
+        if (mouseX>app.width/2-60 and mouseX<app.width/2-10 and
+            mouseY>app.height/2+50 and mouseY<app.height/2+70):
+            onAppStart(app)
+            app.difficulty='easy'
+            app.gameStart=True
+        if (mouseX>app.width/2+60 and mouseX<app.width/2+110 and
+            mouseY>app.height/2+50 and mouseY<app.height/2+70):
+            onAppStart(app)
+            app.difficulty='hard'
+            app.gameStart=True
+    else:
+        if app.haveGun:
+            if mouseX>app.width/2:
+                app.dxGun=1
+            if mouseX<=app.width/2:
+                app.dxGun=-1
+            # app.haveGun=False
+            app.mousePressed=True
 
-def drawGameStartUI(app):
+def drawGameStartUI(app): # game start UI
     drawLabel('Name TBD created by Xinyi Guo', app.width/2, app.height/2)
     drawRect(app.width/2, app.height/2+50,50,20,fill='red')
-    drawLabel('Start',app.width/2+25, app.height/2+60)
+    drawRect(app.width/2-60, app.height/2+50,50,20,fill='red')
+    drawRect(app.width/2+60, app.height/2+50,50,20,fill='red')
+    drawLabel('Medium',app.width/2+25, app.height/2+60)
+    drawLabel('Easy',app.width/2-35, app.height/2+60)
+    drawLabel('Hard',app.width/2+85, app.height/2+60)
 
-def drawScore(app):
-    drawLabel(f'score: {app.score}', 50,20)
-# draw platforms and avatar and score
+def drawGameEndUI(app): # game over UI
+    drawLabel('you Lost', app.width/2, app.height/2)
+    drawRect(app.width/2, app.height/2+50,50,20,fill='red')
+    drawRect(app.width/2-60, app.height/2+50,50,20,fill='red')
+    drawRect(app.width/2+60, app.height/2+50,50,20,fill='red')
+    drawLabel('Medium',app.width/2+25, app.height/2+60)
+    drawLabel('Easy',app.width/2-35, app.height/2+60)
+    drawLabel('Hard',app.width/2+85, app.height/2+60)
+
+def drawGameSuccessUI(app): # game success UI
+    drawLabel('you Win!!!', app.width/2, app.height/2)
+    drawRect(app.width/2, app.height/2+50,50,20,fill='red')
+    drawRect(app.width/2-60, app.height/2+50,50,20,fill='red')
+    drawRect(app.width/2+60, app.height/2+50,50,20,fill='red')
+    drawLabel('Medium',app.width/2+25, app.height/2+60)
+    drawLabel('Easy',app.width/2-35, app.height/2+60)
+    drawLabel('Hard',app.width/2+85, app.height/2+60)
+
+# temp write the current life value
+def drawLife(app):
+    drawLabel(f'Life: {app.life}', 50,20, size=20)
+
+def drawLevel(app):
+    drawLabel(f'Level: {app.level}',app.width/2,30,size=50)
+
+def drawBackground(app):
+    background='backgroundDemo.png'
+    drawImage(background, app.bgX,app.bgY)
+
+# draw platforms and avatar and score and props and level
 def redrawAll(app):
-    drawGameStartUI(app)
-    if app.gameStart==True:
-        drawRect(0,0,app.width,app.height, fill='blue')
-        drawScore(app)
-        drawPlatforms(app)
-        drawImage(app.avatar,app.cx-app.avatarWidth/2,app.cy-app.avatarHeight/2)
-    # print(app.avatar.size)
+    if app.gameStart==False:
+        drawGameStartUI(app)
+    else: 
+        if app.gameOver==False:
+            drawRect(0,0, app.width, app.height, fill='blue')
+            drawLife(app)
+            drawLevel(app)
+            drawPlatforms(app)
+            drawProps(app)
+            drawImage(app.avatar,app.cx-app.avatarWidth/2,app.cy-app.avatarHeight/2)
+        elif app.gameOver==True:
+            drawGameEndUI(app)
+        if app.gameSuccess==True:
+            drawGameSuccessUI(app)
     
 # define canvas size
 def main():
