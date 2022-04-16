@@ -25,6 +25,8 @@ def onAppStart(app):
     app.avatarWidth,app.avatarHeight=64,64 # initialize avatar size
     # a list of randomly generated platform, initialize the first one
     app.platformList=[Platform('normal', app.width/2,app.height/2+app.avatarHeight/2)] 
+    app.platformTypes=['normal','normal','normal','break', 
+                            'bounce','bounce','belt-left','belt-right','stab']
     app.cx=app.width/2 # start avatar position x
     app.cy=app.height/2 # start avatar position y
     app.direction=1 # x direction
@@ -173,16 +175,23 @@ def firstScreenGenerate(app):
     for yPos in range(app.height//2+app.avatarWidth//2+app.platformHeight+100, 
                         app.height, app.platformHeight+100):
         # randomly choose a platform type
-        randomType=random.choice(['normal','normal','normal','break', 
-                            'bounce','bounce','belt-left','belt-right','stab'])
+        randomType=random.choice(app.platformTypes)
         # randomly choose a x location for a platform
         randomX=random.randrange(app.platformWidth/2,app.width-app.platformWidth/2) 
         app.platformList.append(Platform(randomType,randomX, yPos))
 
 # to generate random platforms from bottom when moving upwards
 def generatePlatforms(app):
-    randomType=random.choice(['normal','normal','normal','break', 
-                            'bounce','bounce','belt-left','belt-right','stab'])
+    if app.level>10 and app.level<25:
+        app.platformTypes=['normal','normal','break','break', 
+                            'bounce','bounce','belt-left','belt-right','stab']
+    elif app.level>=25 and app.level<37:
+        app.platformTypes=['normal','normal','break','break', 
+                            'bounce','bounce','belt-left','belt-right','stab','stab']
+    elif app.level>=37:
+        app.platformTypes=['normal','bounce','break','break', 
+                            'bounce','bounce','belt-left','belt-right','stab','stab']
+    randomType=random.choice(app.platformTypes)
     randomX=random.randrange(app.platformWidth/2,app.width-app.platformWidth/2) 
     yPos=app.height+ app.platformHeight/2
     app.platformList.append(Platform(randomType,randomX, yPos))
@@ -271,11 +280,11 @@ def drawProps(app):
 def everythingMoveUpward(app):
     # avatar moves upwards
     selectDifficultyLevel(app)
-    if app.level>20:
-        acceleration = 0.01
+    if app.level>2:
+        acceleration = 0.5
         app.upwardVolocity += acceleration 
     app.cy -= app.upwardVolocity
-    # temp platform moves upwards
+    #  platforms and props moves upwards
     for platform in app.platformList:
         platform.py-= app.upwardVolocity
     for prop in app.propList:
@@ -305,8 +314,18 @@ def onStep(app): # timer event
         #     app.gameOver=True
         app.levelCounter-=1
         if app.levelCounter==0:
-            levelCount(app)
-            app.levelCounter=300
+            if app.level<10:
+                levelCount(app)
+                app.levelCounter=300
+            elif app.level>=10 and app.level<25:
+                levelCount(app)
+                app.levelCounter=350
+            elif app.level>=25 and app.level<37:
+                levelCount(app)
+                app.levelCounter=400
+            elif app.level>=37:
+                levelCount(app)
+                app.levelCounter=450
         if app.haveGun and app.mousePressed:
             app.gx+=app.dxGun*app.bulletSpeed
 
@@ -337,37 +356,31 @@ def onMousePress(app,mouseX,mouseY):
             # app.haveGun=False
             app.mousePressed=True
 
-def drawGameStartUI(app): # game start UI
-    drawLabel('Name TBD created by Xinyi Guo', app.width/2, app.height/2)
+def drawDifficultyButtons(app):
     drawRect(app.width/2, app.height/2+50,50,20,fill='red')
     drawRect(app.width/2-60, app.height/2+50,50,20,fill='red')
     drawRect(app.width/2+60, app.height/2+50,50,20,fill='red')
     drawLabel('Medium',app.width/2+25, app.height/2+60)
     drawLabel('Easy',app.width/2-35, app.height/2+60)
     drawLabel('Hard',app.width/2+85, app.height/2+60)
+
+def drawGameStartUI(app): # game start UI
+    drawLabel('Name TBD created by Xinyi Guo', app.width/2, app.height/2)
+    drawDifficultyButtons(app)
 
 def drawGameEndUI(app): # game over UI
     drawLabel('you Lost', app.width/2, app.height/2)
-    drawRect(app.width/2, app.height/2+50,50,20,fill='red')
-    drawRect(app.width/2-60, app.height/2+50,50,20,fill='red')
-    drawRect(app.width/2+60, app.height/2+50,50,20,fill='red')
-    drawLabel('Medium',app.width/2+25, app.height/2+60)
-    drawLabel('Easy',app.width/2-35, app.height/2+60)
-    drawLabel('Hard',app.width/2+85, app.height/2+60)
+    drawDifficultyButtons(app)
 
 def drawGameSuccessUI(app): # game success UI
     drawLabel('you Win!!!', app.width/2, app.height/2)
-    drawRect(app.width/2, app.height/2+50,50,20,fill='red')
-    drawRect(app.width/2-60, app.height/2+50,50,20,fill='red')
-    drawRect(app.width/2+60, app.height/2+50,50,20,fill='red')
-    drawLabel('Medium',app.width/2+25, app.height/2+60)
-    drawLabel('Easy',app.width/2-35, app.height/2+60)
-    drawLabel('Hard',app.width/2+85, app.height/2+60)
+    drawDifficultyButtons(app)
 
 # temp write the current life value
 def drawLife(app):
     drawLabel(f'Life: {app.life}', 50,20, size=20)
 
+# temp write the current level
 def drawLevel(app):
     drawLabel(f'Level: {app.level}',app.width/2,30,size=50)
 
