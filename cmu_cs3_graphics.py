@@ -1,4 +1,5 @@
 from cmu_graphics.cmu_graphics import *
+from cmu_graphics.shape_logic import PILWrapper as CMUImage
 import threading, traceback, types, inspect, copy, sys
 import atexit
 
@@ -7,7 +8,7 @@ class MvcException(Exception): pass
 class AppWrapper(object):
     readOnlyAttrs = set(['bottom','centerX', 'centerY',
                          'getTextInput', 'left', 'quit', 'right',
-                         'run', 'stop', 'top' ])
+                         'run', 'stop', 'top', 'setMaxShapeCount' ])
     readWriteAttrs = set(['height', 'paused', 'stepsPerSecond',
                           'title', 'width', 'mode', 'background'])
     allAttrs = readOnlyAttrs | readWriteAttrs
@@ -40,13 +41,6 @@ class AppWrapper(object):
         else:
             return super().__setattr__(attr, value)
 
-def printUserTraceback(e, tb):
-    stack = traceback.extract_tb(tb)
-    lines = traceback.format_list(stack)
-    print('\nTraceback (most recent call last):')
-    for line in lines[::-1]: print(line, end='')
-    print(f'{e.__class__.__name__}: {e}')
-
 def drawExceptionWarning():
     if app.hasException: return
     app.hasException = True
@@ -66,25 +60,11 @@ def callUserFn(self, fnName, args):
             (self.userGlobals[fnName])(app.appWrapper, *args)
             if (not fnName0.endswith('redrawAll')): redrawAllWrapper(self)
         except Exception as e:
-            stackSummary = traceback.extract_tb(e.__traceback__)
-            printUserCodeTraceback(e, stackSummary)
+            sys.excepthook(*sys.exc_info())
             drawExceptionWarning()
     elif fnName0.endswith('redrawAll'):
         drawLabel(f'{fnName}()', app.centerX, app.centerY-20, size=20)
         drawLabel('not defined', app.centerX, app.centerY+20, size=20)
-
-def printUserCodeTraceback(e, stackSummary):
-    # remove calls from system code in the traceback
-    # call with:
-    #  stackSummary = traceback.extract_tb(e.__traceback__)
-    #  printUserCodeTraceback(stackSummary)
-    ignoredFiles = [  __file__ ]
-    print('\nTraceback (most recent call last):')
-    for filename, lineno, name, line in stackSummary:
-        if (filename not in ignoredFiles):
-            print(f'  File "{filename}", line {lineno}, in {name}')
-            print(f'    {line}')
-    print(f'{e.__class__.__name__}: {e}')
 
 def redrawAllWrapper(app):
     app.group.clear()
@@ -97,14 +77,13 @@ def runApp(width=400, height=400, **kwargs):
         setattr(app.appWrapper, kw, kwargs[kw])
     callUserFn(app, 'onAppStart', [ ])
     redrawAllWrapper(app)
-    # callersGlobals = inspect.stack()[1][0].f_globals
     run()
 
 def setupMvc():
     global app
     app = app._app
     atexit.unregister(run)
-    exports = ['MvcException', 'runApp', 'gradient', 'rgb', 'Sound' ]
+    exports = ['MvcException', 'runApp', 'gradient', 'rgb', 'Sound', 'CMUImage' ]
     app.appWrapper = AppWrapper(app)
     app.inRedrawAll = False
     shapes = [ Arc, Circle, Image, Label, Line, Oval,
